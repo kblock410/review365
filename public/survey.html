@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>お客様アンケート</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #f8fafc; font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; color: #1e293b; }
+  #app { max-width: 430px; margin: 0 auto; min-height: 100vh; background: #f8fafc; }
+  .header { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 16px 20px 14px; position: sticky; top: 0; z-index: 100; }
+  .store-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .store-logo { width: 42px; height: 42px; border-radius: 50%; background: #3b82f6; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 18px; flex-shrink: 0; }
+  .store-name { font-weight: 700; font-size: 15px; }
+  .store-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+  .progress-labels { display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; margin-bottom: 6px; }
+  .progress-track { height: 5px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #3b82f6; border-radius: 3px; transition: width 0.4s ease; }
+  .content { padding: 28px 20px 140px; }
+  .q-label { font-size: 13px; font-weight: 600; color: #ef4444; margin-bottom: 8px; }
+  .q-label.opt { color: #94a3b8; }
+  .q-title { font-size: 18px; font-weight: 700; color: #0f172a; line-height: 1.5; margin-bottom: 8px; }
+  .q-sub { font-size: 13px; color: #64748b; margin-bottom: 22px; }
+  .choice { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 58px; padding: 15px 20px; margin-bottom: 10px; border-radius: 14px; border: 2px solid #e2e8f0; background: #fff; color: #334155; font-size: 15px; font-family: inherit; font-weight: 400; text-align: left; cursor: pointer; -webkit-appearance: none; }
+  .choice.on { border-color: #3b82f6; background: rgba(59,130,246,0.09); color: #3b82f6; font-weight: 600; }
+  .chk { font-size: 18px; display: none; }
+  .choice.on .chk { display: inline; }
+  .mgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+  .mbtn { min-height: 58px; padding: 14px 8px; border-radius: 14px; border: 2px solid #e2e8f0; background: #fff; color: #334155; font-size: 15px; font-family: inherit; font-weight: 400; text-align: center; cursor: pointer; -webkit-appearance: none; }
+  .mbtn.on { border-color: #3b82f6; background: rgba(59,130,246,0.09); color: #3b82f6; font-weight: 600; }
+  .stars { display: flex; justify-content: center; gap: 4px; margin: 22px 0 12px; }
+  .star { font-size: 50px; color: #e2e8f0; cursor: pointer; padding: 6px 4px; background: none; border: none; -webkit-appearance: none; line-height: 1; }
+  .star.on { color: #f59e0b; }
+  .rlabel { text-align: center; font-size: 16px; font-weight: 700; color: #f59e0b; margin-bottom: 24px; min-height: 26px; }
+  .sub-grp { margin-bottom: 18px; }
+  .sub-lbl { font-size: 14px; font-weight: 500; color: #64748b; margin-bottom: 10px; }
+  .sub-row { display: flex; gap: 8px; }
+  .sbtn { flex: 1; min-height: 48px; padding: 10px 4px; border-radius: 12px; border: 2px solid #e2e8f0; background: #fff; color: #64748b; font-size: 12px; font-family: inherit; cursor: pointer; -webkit-appearance: none; }
+  .sbtn.on { border-color: #3b82f6; background: rgba(59,130,246,0.09); color: #3b82f6; font-weight: 600; }
+  textarea { width: 100%; padding: 16px; border-radius: 14px; border: 2px solid #e2e8f0; font-size: 15px; font-family: inherit; line-height: 1.7; resize: none; outline: none; background: #fff; color: #0f172a; display: block; }
+  .ibox { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: #f0f9ff; border: 1px solid #bae6fd; }
+  .ibox-t { font-size: 13px; color: #0284c7; font-weight: 600; margin-bottom: 4px; }
+  .ibox-b { font-size: 12px; color: #0369a1; line-height: 1.6; }
+  .bbar { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; padding: 16px 20px 36px; background: rgba(248,250,252,0.97); border-top: 1px solid #e2e8f0; }
+  .bnext { display: block; width: 100%; padding: 18px; border-radius: 16px; border: none; background: #3b82f6; color: #fff; font-size: 17px; font-family: inherit; font-weight: 700; cursor: pointer; -webkit-appearance: none; }
+  .bnext:disabled { background: #e2e8f0; color: #94a3b8; cursor: default; }
+  .bback { display: block; width: 100%; padding: 12px; background: none; border: none; color: #94a3b8; font-size: 14px; font-family: inherit; cursor: pointer; margin-top: 4px; -webkit-appearance: none; }
+  .gen { text-align: center; padding-top: 80px; }
+  .gen-ic { font-size: 60px; display: block; margin-bottom: 20px; }
+  .gen-t { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+  .gen-s { font-size: 14px; color: #64748b; line-height: 1.8; }
+  .rh { text-align: center; margin-bottom: 24px; }
+  .rh-ic { font-size: 44px; margin-bottom: 8px; }
+  .rh-t { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+  .rh-s { font-size: 13px; color: #64748b; }
+  .rtxt { background: #fff; border-radius: 16px; padding: 20px; border: 1.5px solid #e2e8f0; margin-bottom: 14px; font-size: 15px; line-height: 1.8; color: #1e293b; white-space: pre-wrap; }
+  .rprev { background: #fff; border-radius: 12px; padding: 12px 16px; border: 1px solid #e2e8f0; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+  .rprev-s { color: #f59e0b; font-size: 22px; letter-spacing: 2px; }
+  .rprev-l { font-size: 13px; color: #64748b; }
+  .bcopy { display: block; width: 100%; padding: 18px; border-radius: 14px; border: none; background: #3b82f6; color: #fff; font-size: 16px; font-family: inherit; font-weight: 700; cursor: pointer; margin-bottom: 12px; -webkit-appearance: none; }
+  .bcopy.ok { background: #10b981; }
+  .bgmap { display: block; width: 100%; padding: 18px; border-radius: 14px; border: 2px solid #bbf7d0; background: #f0fdf4; color: #16a34a; font-size: 16px; font-family: inherit; font-weight: 700; cursor: pointer; margin-bottom: 12px; -webkit-appearance: none; }
+  .bredo { display: block; width: 100%; padding: 16px; border-radius: 14px; border: 2px solid #e2e8f0; background: #fff; color: #64748b; font-size: 14px; font-family: inherit; cursor: pointer; margin-bottom: 12px; -webkit-appearance: none; }
+  .disc { padding: 12px 14px; border-radius: 10px; background: #fafafa; border: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8; line-height: 1.6; }
+  .posted { text-align: center; padding-top: 32px; }
+  .post-ic { font-size: 64px; margin-bottom: 16px; }
+  .post-t { font-size: 22px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+  .post-m { font-size: 14px; color: #64748b; line-height: 1.8; margin-bottom: 32px; }
+  .coup { background: linear-gradient(135deg, #3b82f6, #06b6d4); border-radius: 20px; padding: 28px 24px; color: #fff; margin-bottom: 16px; }
+  .coup-l { font-size: 12px; opacity: .85; margin-bottom: 6px; }
+  .coup-v { font-size: 36px; font-weight: 900; letter-spacing: -1px; margin-bottom: 6px; }
+  .coup-d { font-size: 13px; opacity: .9; margin-bottom: 18px; }
+  .coup-c { background: rgba(255,255,255,.25); border-radius: 12px; padding: 10px 20px; font-size: 20px; font-weight: 700; letter-spacing: 4px; }
+  .coup-e { font-size: 12px; color: #94a3b8; margin-top: 12px; }
+  .hid { display: none !important; }
+  .saving { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header" id="hdr">
+    <div class="store-row">
+      <div class="store-logo">S</div>
+      <div>
+        <div class="store-name">銀座 美容室 Shion</div>
+        <div class="store-sub">お客様アンケート</div>
+      </div>
+    </div>
+    <div id="prog">
+      <div class="progress-labels"><span id="ptxt">質問 1 / 4</span><span id="ppct">25%</span></div>
+      <div class="progress-track"><div class="progress-fill" id="pbar" style="width:25%"></div></div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="q0">
+      <div class="q-label">必須</div>
+      <div class="q-title">ご来店のきっかけを<br>教えてください</div>
+      <div style="margin-top:20px">
+        <button class="choice" id="v0" onclick="selVisit('Instagram','v0')"><span>Instagramを見て</span><span class="chk">✓</span></button>
+        <button class="choice" id="v1" onclick="selVisit('Googleマップ','v1')"><span>Googleマップで見つけた</span><span class="chk">✓</span></button>
+        <button class="choice" id="v2" onclick="selVisit('友人紹介','v2')"><span>友人・知人の紹介</span><span class="chk">✓</span></button>
+        <button class="choice" id="v3" onclick="selVisit('ホットペッパー','v3')"><span>ホットペッパー</span><span class="chk">✓</span></button>
+        <button class="choice" id="v4" onclick="selVisit('お店の前','v4')"><span>お店の前を通って</span><span class="chk">✓</span></button>
+      </div>
+    </div>
+
+    <div id="q1" class="hid">
+      <div class="q-label">必須</div>
+      <div class="q-title">ご利用メニューを<br>教えてください</div>
+      <div class="q-sub">複数選択できます</div>
+      <div class="mgrid">
+        <button class="mbtn" id="m0" onclick="togMenu('カット','m0')">カット</button>
+        <button class="mbtn" id="m1" onclick="togMenu('カラー','m1')">カラー</button>
+        <button class="mbtn" id="m2" onclick="togMenu('縮毛矯正','m2')">縮毛矯正</button>
+        <button class="mbtn" id="m3" onclick="togMenu('トリートメント','m3')">トリートメント</button>
+        <button class="mbtn" id="m4" onclick="togMenu('パーマ','m4')">パーマ</button>
+        <button class="mbtn" id="m5" onclick="togMenu('ヘッドスパ','m5')">ヘッドスパ</button>
+      </div>
+    </div>
+
+    <div id="q2" class="hid">
+      <div class="q-label">必須</div>
+      <div class="q-title">全体的な満足度を<br>教えてください</div>
+      <div class="stars">
+        <button class="star" id="s1" onclick="setRating(1)">★</button>
+        <button class="star" id="s2" onclick="setRating(2)">★</button>
+        <button class="star" id="s3" onclick="setRating(3)">★</button>
+        <button class="star" id="s4" onclick="setRating(4)">★</button>
+        <button class="star" id="s5" onclick="setRating(5)">★</button>
+      </div>
+      <div class="rlabel" id="rlbl"></div>
+      <div id="subq" class="hid">
+        <div class="sub-grp">
+          <div class="sub-lbl">スタッフの対応</div>
+          <div class="sub-row">
+            <button class="sbtn" id="st0" onclick="selSub('staff','st0','とても良かった')">とても良かった</button>
+            <button class="sbtn" id="st1" onclick="selSub('staff','st1','良かった')">良かった</button>
+            <button class="sbtn" id="st2" onclick="selSub('staff','st2','普通')">普通</button>
+          </div>
+        </div>
+        <div class="sub-grp">
+          <div class="sub-lbl">店内の雰囲気</div>
+          <div class="sub-row">
+            <button class="sbtn" id="at0" onclick="selSub('atmos','at0','おしゃれ')">おしゃれ</button>
+            <button class="sbtn" id="at1" onclick="selSub('atmos','at1','清潔感あり')">清潔感あり</button>
+            <button class="sbtn" id="at2" onclick="selSub('atmos','at2','くつろげた')">くつろげた</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="q3" class="hid">
+      <div class="q-label opt">任意</div>
+      <div class="q-title">感想を自由にお書き<br>ください</div>
+      <div class="q-sub">特に良かった点など</div>
+      <textarea id="ftxt" rows="5" placeholder="例：スタッフの方がとても丁寧で..."></textarea>
+      <div class="ibox"><div class="ibox-t">🤖 AIが口コミ文を自動作成します</div><div class="ibox-b">ご回答をもとにGoogleマップへ投稿できる口コミ文をAIが作成します。</div></div>
+    </div>
+
+    <div id="gen" class="hid">
+      <div class="gen"><span class="gen-ic">✨</span><div class="gen-t">口コミ文を作成中...</div><div class="gen-s">AIがあなたの体験をもとに<br>最適な文章を作成しています</div></div>
+    </div>
+
+    <div id="res" class="hid">
+      <div class="rh"><div class="rh-ic">✅</div><div class="rh-t">口コミ文が完成しました！</div><div class="rh-s">内容をご確認の上、Googleマップへ投稿してください</div></div>
+      <div class="rtxt" id="rtxt"></div>
+      <div class="rprev"><span class="rprev-s" id="rprevs"></span><span class="rprev-l">投稿予定の評価</span></div>
+      <button class="bcopy" id="bcopy" onclick="doCopy()">📋 口コミ文をコピーする</button>
+      <button class="bgmap" onclick="doPosted()">🗺️ Googleマップに投稿する</button>
+      <button class="bredo" onclick="doGen()">🔄 文章を書き直す</button>
+      <div class="disc">※ AIが作成した文章案です。ご自身の体験に合わせて編集してからご投稿ください。</div>
+    </div>
+
+    <div id="post" class="hid">
+      <div class="posted">
+        <div class="post-ic">🎉</div>
+        <div class="post-t">ありがとうございます！</div>
+        <div class="post-m">口コミのご投稿ありがとうございます。<br>銀座 美容室 Shionスタッフ一同、<br>またのご来店をお待ちしております。</div>
+        <div class="coup"><div class="coup-l">口コミ投稿特典</div><div class="coup-v">10% OFF</div><div class="coup-d">次回ご来店時にご利用いただけます</div><div class="coup-c">HYOBAN10</div></div>
+        <div class="coup-e">有効期限：2026年12月31日まで</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bbar" id="bbar">
+    <button class="bnext" id="bnext" onclick="doNext()" disabled>次へ →</button>
+    <button class="bback hid" id="bback" onclick="doBack()">← 戻る</button>
+  </div>
+</div>
+
+<script>
+var D = { step:0, visit:'', menus:[], rating:0, staff:'', atmos:'', review:'' };
+var RL = ['','残念でした','もう少し','普通でした','良かったです','最高でした！'];
+var KW = ['銀座 美容室','銀座 縮毛矯正','銀座 ヘアサロン'];
+
+function show(ids) {
+  ['q0','q1','q2','q3','gen','res','post'].forEach(function(id){ document.getElementById(id).classList.add('hid'); });
+  [].concat(ids).forEach(function(id){ document.getElementById(id).classList.remove('hid'); });
+}
+function h(id){ return document.getElementById(id); }
+
+function render() {
+  var s = D.step;
+  if(s===0){ show('q0'); h('prog').classList.remove('hid'); h('bbar').classList.remove('hid'); }
+  else if(s===1){ show('q1'); h('prog').classList.remove('hid'); h('bbar').classList.remove('hid'); }
+  else if(s===2){ show('q2'); h('prog').classList.remove('hid'); h('bbar').classList.remove('hid'); }
+  else if(s===3){ show('q3'); h('prog').classList.remove('hid'); h('bbar').classList.remove('hid'); }
+  else if(s===4){ show('gen'); h('prog').classList.add('hid'); h('bbar').classList.add('hid'); }
+  else if(s===5){ show('res'); h('prog').classList.add('hid'); h('bbar').classList.add('hid'); }
+  else if(s===6){ show('post'); h('prog').classList.add('hid'); h('bbar').classList.add('hid'); }
+
+  if(s<=3){
+    var pct = Math.round((s+1)/4*100);
+    h('ptxt').textContent = '質問 '+(s+1)+' / 4';
+    h('ppct').textContent = pct+'%';
+    h('pbar').style.width = pct+'%';
+    var ok = (s===0&&D.visit)||(s===1&&D.menus.length>0)||(s===2&&D.rating>0)||(s===3);
+    h('bnext').disabled = !ok;
+    h('bnext').textContent = s<3 ? '次へ →' : '✨ AIで口コミ文を作成する';
+    if(s>0) h('bback').classList.remove('hid'); else h('bback').classList.add('hid');
+  }
+}
+
+function selVisit(val, id) {
+  D.visit = val;
+  ['v0','v1','v2','v3','v4'].forEach(function(i){ h(i).classList.remove('on'); });
+  h(id).classList.add('on');
+  render();
+}
+function togMenu(val, id) {
+  var i = D.menus.indexOf(val);
+  if(i>=0){ D.menus.splice(i,1); h(id).classList.remove('on'); h(id).textContent = val; }
+  else { D.menus.push(val); h(id).classList.add('on'); h(id).textContent = '✓ '+val; }
+  render();
+}
+function setRating(n) {
+  D.rating = n;
+  for(var i=1;i<=5;i++){ h('s'+i).classList.toggle('on', i<=n); }
+  h('rlbl').textContent = RL[n];
+  h('subq').classList.remove('hid');
+  render();
+}
+function selSub(type, id, val) {
+  D[type] = val;
+  var prefix = type==='staff' ? 'st' : 'at';
+  [0,1,2].forEach(function(i){ h(prefix+i).classList.remove('on'); });
+  h(id).classList.add('on');
+}
+function doNext() {
+  if(D.step<3){ D.step++; render(); }
+  else doGen();
+}
+function doBack() { if(D.step>0){ D.step--; render(); } }
+
+function makeSample(kw) {
+  var staffMsg = D.staff ? 'スタッフの'+D.staff+'対応と' : '';
+  return D.visit+'で初めて銀座 美容室 Shionを訪問しました。'+D.menus.join('・')+'をお願いしたのですが、'+staffMsg+'仕上がりも大満足です！'+kw+'の中でもトップクラスのサロンだと思います。またぜひ来たいと思います！';
+}
+
+// アンケート回答をSupabaseに保存
+function saveToDb(review) {
+  var ft = h('ftxt') ? h('ftxt').value : '';
+  fetch('/api/save-response', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      visitReason: D.visit,
+      menus: D.menus,
+      rating: D.rating,
+      staffRating: D.staff,
+      atmosphere: D.atmos,
+      freeText: ft,
+      language: 'ja',
+      generatedReview: review
+    })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){ console.log('保存完了:', data.id); })
+  .catch(function(e){ console.error('保存エラー:', e); });
+}
+
+function doGen() {
+  D.step = 4; render();
+  var kw = KW[Math.floor(Math.random()*KW.length)];
+  var ft = h('ftxt') ? h('ftxt').value : '';
+
+  fetch('/api/generate-review', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ visitReason:D.visit, menus:D.menus, rating:D.rating, staffRating:D.staff, atmosphere:D.atmos, freeText:ft, language:'ja' })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    // AI生成成功 or エラーどちらでもサンプルにフォールバック
+    D.review = (data.review && !data.error) ? data.review : makeSample(kw);
+    saveToDb(D.review);  // ← ここで必ず保存
+    showResult();
+  })
+  .catch(function(){
+    D.review = makeSample(kw);
+    saveToDb(D.review);  // ← エラー時も保存
+    showResult();
+  });
+}
+
+function showResult() {
+  h('rtxt').textContent = D.review;
+  h('rprevs').textContent = '★'.repeat(D.rating)+'☆'.repeat(5-D.rating);
+  D.step = 5; render();
+}
+function doCopy() {
+  var b = h('bcopy');
+  if(navigator.clipboard){ navigator.clipboard.writeText(D.review); }
+  else { var t=document.createElement('textarea'); t.value=D.review; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); }
+  b.textContent='✓ コピーしました'; b.classList.add('ok');
+  setTimeout(function(){ b.textContent='📋 口コミ文をコピーする'; b.classList.remove('ok'); }, 2000);
+}
+function doPosted(){ D.step=6; render(); }
+
+render();
+</script>
+</body>
+</html>
