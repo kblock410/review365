@@ -14,24 +14,20 @@ const SURVEY_TYPES = [
 ];
 
 function QRCodeDisplay({ url, size = 180 }: { url: string; size?: number }) {
-  // QRコードをSVGで簡易表示（実際はqrcode.reactライブラリを使用）
-  const cells = 21;
-  const cellSize = size / cells;
-  
-  // ダミーQRパターン（実際の実装ではqrcodeライブラリを使用）
+  // api.qrserver.com を使ってリアルなQRコードを生成
+  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(url)}&margin=10&color=000000&bgcolor=ffffff`;
   return (
     <div
       className="flex items-center justify-center rounded-xl p-4"
       style={{ background: "#fff", width: size + 32, height: size + 32 }}
     >
-      <div
-        style={{
-          width: size,
-          height: size,
-          background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${cells} ${cells}'%3E%3Crect width='${cells}' height='${cells}' fill='white'/%3E%3Crect x='0' y='0' width='7' height='7' fill='none' stroke='black' stroke-width='1'/%3E%3Crect x='1' y='1' width='5' height='5' fill='black'/%3E%3Crect x='2' y='2' width='3' height='3' fill='white'/%3E%3Crect x='3' y='3' width='1' height='1' fill='black'/%3E%3Crect x='14' y='0' width='7' height='7' fill='none' stroke='black' stroke-width='1'/%3E%3Crect x='15' y='1' width='5' height='5' fill='black'/%3E%3Crect x='16' y='2' width='3' height='3' fill='white'/%3E%3Crect x='17' y='3' width='1' height='1' fill='black'/%3E%3Crect x='0' y='14' width='7' height='7' fill='none' stroke='black' stroke-width='1'/%3E%3Crect x='1' y='15' width='5' height='5' fill='black'/%3E%3Crect x='2' y='16' width='3' height='3' fill='white'/%3E%3Crect x='3' y='17' width='1' height='1' fill='black'/%3E%3C/svg%3E")`,
-          backgroundSize: "cover",
-          imageRendering: "pixelated",
-        }}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={qrApiUrl}
+        alt="QR Code"
+        width={size}
+        height={size}
+        style={{ imageRendering: "pixelated" }}
       />
     </div>
   );

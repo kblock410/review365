@@ -7,13 +7,12 @@ const LANG_MAP: Record<string, string> = {
   ja: "日本語", en: "英語", zh: "中国語（繁体字）", ko: "韓国語",
 };
 
-const KEYWORDS = ["銀座 美容室", "銀座 縮毛矯正", "銀座 ヘアサロン", "銀座 ヘアカット"];
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { visitReason, menus, rating, staffRating, atmosphere, freeText, language } = body;
-    const keyword = KEYWORDS[Math.floor(Math.random() * KEYWORDS.length)];
+    const { visitReason, menus, rating, staffRating, atmosphere, freeText, language, storeName, keywords } = body;
+    const storeKeywords: string[] = keywords?.length > 0 ? keywords : [storeName ?? "店舗"];
+    const keyword = storeKeywords[Math.floor(Math.random() * storeKeywords.length)];
     const langLabel = LANG_MAP[language] ?? "日本語";
 
     const message = await client.messages.create({
@@ -21,7 +20,7 @@ export async function POST(req: NextRequest) {
       max_tokens: 1000,
       messages: [{
         role: "user",
-        content: `あなたは「銀座 美容室 Shion」を訪問した顧客です。以下のアンケート回答をもとに、Googleマップに投稿する自然でリアルな口コミ文を${langLabel}で作成してください。
+        content: `あなたは「${storeName ?? "店舗"}」を訪問した顧客です。以下のアンケート回答をもとに、Googleマップに投稿する自然でリアルな口コミ文を${langLabel}で作成してください。
 
 【アンケート回答】
 - 来店のきっかけ: ${visitReason || "未回答"}

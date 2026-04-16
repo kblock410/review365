@@ -6,12 +6,16 @@ import {
   Button, Badge, PageHeader, AIPulse, AIOutput,
 } from "@/components/ui";
 import {
-  MOCK_STORE, MENU_OPTIONS, VISIT_REASONS, LANG_LABELS,
+  MENU_OPTIONS, VISIT_REASONS, LANG_LABELS,
 } from "@/lib/utils";
 import type { Language, SurveyAnswer } from "@/types";
 import { Copy, RefreshCw, Send, Star, Check } from "lucide-react";
+import { useStore } from "@/lib/store-context";
 
 export default function SurveyPage() {
+  const { currentStore } = useStore();
+  const storeName = currentStore?.name ?? "店舗";
+  const storeKeywords = currentStore?.keywords ?? [];
   const [lang, setLang] = useState<Language>("ja");
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
@@ -27,6 +31,8 @@ export default function SurveyPage() {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [replyLoading, setReplyLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const toggleMenu = (m: string) =>
     setMenus((prev) =>
@@ -44,18 +50,22 @@ export default function SurveyPage() {
       const res = await fetch("/api/generate-review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, storeName, keywords: storeKeywords }),
       });
       const data = await res.json();
-      setReview(data.review || "エラーが発生しました。");
+      const generatedReview = data.review || "エラーが発生しました。";
+      setReview(generatedReview);
       setUsedKeyword(data.keyword || "");
       // Auto-generate reply
-      generateReply(data.review, lang);
+      generateReply(generatedReview, lang);
+      // DB保存（バックグラウンドで実行、エラーは無視しない）
+      saveToDB({ visitReason, menus, rating, staffRating, atmosphere, freeText, language: lang }, generatedReview);
     } catch {
+      const fallbackKw = storeKeywords[0] ?? storeName;
       setReview(
-        `【サンプル出力】\n\nInstagramで見かけて初めて訪問しました。${MOCK_STORE.keywords[0]}の中でも特に丁寧なカウンセリングで、縮毛矯正をお願いしたのですが仕上がりが想像以上に自然でサラサラに！スタッフの方がとても親切で、上品な空間でリラックスできました。また絶対来ます！`
+        `【サンプル出力】\n\nInstagramで見かけて初めて訪問しました。${fallbackKw}の中でも特に丁寧なカウンセリングで、仕上がりが想像以上に自然！スタッフの方がとても親切で、上品な空間でリラックスできました。また絶対来ます！`
       );
-      setUsedKeyword(MOCK_STORE.keywords[0]);
+      setUsedKeyword(fallbackKw);
       generateReply("サンプル口コミです。", lang);
     } finally {
       setReviewLoading(false);
@@ -71,16 +81,32 @@ export default function SurveyPage() {
         body: JSON.stringify({
           reviewText,
           language,
-          storeName: MOCK_STORE.name,
+          storeName,
           rating,
         }),
       });
       const data = await res.json();
       setReply(data.reply || "");
     } catch {
-      setReply("この度はご来店いただきありがとうございます！またのご来店を心よりお待ちしております。銀座 美容室 Shion スタッフ一同");
+      setReply(`この度はご来店いただきありがとうございます！またのご来店を心よりお待ちしております。${storeName} スタッフ一同`);
     } finally {
       setReplyLoading(false);
+    }
+  };
+
+  const saveToDB = async (answer: any, generatedReview: string) => {
+    setSaved(false);
+    setSaveError("");
+    try {
+      const res = await fetch("/api/save-response", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...answer, generatedReview }),
+      });
+      if (res.ok) setSaved(true);
+      else setSaveError("保存に失敗しました");
+    } catch {
+      setSaveError("DB接続エラー（モードで動作中）");
     }
   };
 
@@ -102,7 +128,7 @@ export default function SurveyPage() {
         <div className="space-y-5">
           <Card>
             <CardHeader>
-              <CardTitle>📋 お客様アンケート — {MOCK_STORE.name}</CardTitle>
+              <CardTitle>📋 お客様アンケート — {storeName}</CardTitle>
               {/* Language toggle */}
               <div className="flex gap-1.5">
                 {(Object.keys(LANG_LABELS) as Language[]).map((l) => (
@@ -243,7 +269,7 @@ export default function SurveyPage() {
                   対策キーワード（AIが口コミに含めます）
                 </label>
                 <div className="flex flex-wrap gap-1.5">
-                  {MOCK_STORE.keywords.map((kw) => (
+                  {storeKeywords.map((kw) => (
                     <span
                       key={kw}
                       className="px-2.5 py-1 rounded-full text-[11px]"
@@ -305,9 +331,10 @@ export default function SurveyPage() {
               </AIOutput>
 
               {usedKeyword && (
-                <div className="mt-2 text-[11px]" style={{ color: "var(--muted)" }}>
-                  使用キーワード:{" "}
-                  <span style={{ color: "var(--accent)" }}>{usedKeyword}</span>
+                <div className="mt-2 text-[11px] flex items-center gap-3" style={{ color: "var(--muted)" }}>
+                  <span>使用キーワード: <span style={{ color: "var(--accent)" }}>{usedKeyword}</span></span>
+                  {saved && <span style={{ color: "var(--green)" }}>✓ DB保存済</span>}
+                  {saveError && <span style={{ color: "var(--amber)", fontSize: 10 }}>{saveError}</span>}
                 </div>
               )}
 

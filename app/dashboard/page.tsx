@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   AreaChart,
   Area,
@@ -18,19 +19,51 @@ import {
 } from "@/components/ui";
 import {
   MOCK_STATS, IMPRESSIONS_DATA, REVIEW_GROWTH_DATA,
-  CHANNEL_DATA, MOCK_STORE, formatDelta,
+  CHANNEL_DATA, formatDelta,
 } from "@/lib/utils";
-import { AlertCircle, Camera, Target, TrendingUp } from "lucide-react";
+import { AlertCircle, Camera, Loader2, Target, TrendingUp } from "lucide-react";
 import Link from "next/link";
+import type { DashboardStats } from "@/types";
+import { useStore } from "@/lib/store-context";
 
 export default function DashboardPage() {
-  const s = MOCK_STATS;
+  const { currentStoreId, currentStore } = useStore();
+  const [s, setS] = useState<DashboardStats>(MOCK_STATS);
+  const [impressionsData, setImpressionsData] = useState(IMPRESSIONS_DATA);
+  const [dataSource, setDataSource] = useState<"db" | "mock">("mock");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    (window as any).__dashEffect = ((window as any).__dashEffect ?? 0) + 1;
+    (window as any).__dashStoreId = currentStoreId;
+    setLoading(true);
+    fetch("/api/dashboard")
+      .then((r) => r.json())
+      .then((data) => {
+        (window as any).__dashResolved = true;
+        setS(data.stats);
+        if (data.impressionsData?.length > 0) setImpressionsData(data.impressionsData);
+        setDataSource(data.source ?? "mock");
+      })
+      .catch((e) => { (window as any).__dashError = e.message; })
+      .finally(() => { (window as any).__dashFinally = ((window as any).__dashFinally ?? 0) + 1; setLoading(false); });
+  }, [currentStoreId]);
+
+  if (loading) {
+    return (
+      <div className="animate-slide-up flex flex-col items-center justify-center min-h-[300px] gap-3">
+        <Loader2 size={32} className="animate-spin" style={{ color: "var(--accent)" }} />
+        <p style={{ color: "var(--muted)" }}>データを取得中...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-slide-up">
       <PageHeader
         title="ダッシュボード"
-        subtitle={`${MOCK_STORE.name} — 過去30日間の概要`}
+        subtitle={`${currentStore?.name ?? "店舗"} — 過去30日間の概要`}
+        badge={dataSource === "db" ? "Supabase" : "デモデータ"}
       />
 
       {/* KPI Cards */}
@@ -77,7 +110,7 @@ export default function DashboardPage() {
               <span className="text-sm text-green-400">↑ +{s.impressionsDelta.toLocaleString()}</span>
             </div>
             <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={IMPRESSIONS_DATA}>
+              <AreaChart data={impressionsData}>
                 <defs>
                   <linearGradient id="impGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -91,7 +124,7 @@ export default function DashboardPage() {
                   contentStyle={{ background: "#1a2235", border: "1px solid #1e2d47", borderRadius: 8, fontSize: 12 }}
                   labelStyle={{ color: "#94a3b8" }}
                   itemStyle={{ color: "#3b82f6" }}
-                  formatter={(v: number) => [v.toLocaleString(), "表示回数"]}
+                  formatter={(v: any) => [(v as number).toLocaleString(), "表示回数"]}
                 />
                 <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fill="url(#impGrad)" />
               </AreaChart>
@@ -164,7 +197,7 @@ export default function DashboardPage() {
                 <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={40} />
                 <Tooltip
                   contentStyle={{ background: "#1a2235", border: "1px solid #1e2d47", borderRadius: 8, fontSize: 12 }}
-                  formatter={(v: number) => [v, "件"]}
+                  formatter={(v: any) => [v, "件"]}
                 />
                 <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} fill="url(#revGrad)" />
               </AreaChart>

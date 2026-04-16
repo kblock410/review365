@@ -1,18 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card, CardHeader, CardTitle, CardBody,
   Badge, Button, PageHeader, Stars, AIPulse, AIOutput,
 } from "@/components/ui";
-import { MOCK_REVIEWS, MOCK_STORE, LANG_LABELS } from "@/lib/utils";
+import { LANG_LABELS } from "@/lib/utils";
 import type { Review } from "@/types";
-import { MessageSquare, RefreshCw, Check, Send } from "lucide-react";
+import { MessageSquare, RefreshCw, Check, Loader2 } from "lucide-react";
+import { useStore } from "@/lib/store-context";
 
 type Filter = "all" | "unreplied" | "low";
 
 export default function ReviewsPage() {
-  const [reviews, setReviews] = useState<Review[]>(MOCK_REVIEWS);
+  const { currentStoreId, currentStore } = useStore();
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dataSource, setDataSource] = useState<"db" | "mock">("mock");
+
+  useEffect(() => {
+    setLoading(true);
+    setReviews([]);
+    fetch("/api/reviews")
+      .then((r) => r.json())
+      .then((data) => {
+        // DBのカラム名（snake_case）をフロント型（camelCase）に変換
+        const mapped: Review[] = data.reviews.map((r: any) => ({
+          id: r.id,
+          reviewerName: r.reviewer_name ?? r.reviewerName,
+          rating: r.rating,
+          text: r.text,
+          language: r.language ?? "ja",
+          date: r.review_date
+            ? new Date(r.review_date).toLocaleDateString("ja-JP").replace(/-/g, "/")
+            : r.date ?? "",
+          replied: r.replied ?? false,
+          replyText: r.reply_text ?? r.replyText,
+          source: r.source ?? "google",
+          isLocal: r.is_local_guide ?? r.isLocal ?? false,
+        }));
+        setReviews(mapped);
+        setDataSource(data.source ?? "mock");
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [currentStoreId]);
   const [filter, setFilter] = useState<Filter>("all");
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [generatedReplies, setGeneratedReplies] = useState<Record<string, string>>({});
@@ -39,7 +71,7 @@ export default function ReviewsPage() {
         body: JSON.stringify({
           reviewText: review.text,
           language: review.language,
-          storeName: MOCK_STORE.name,
+          storeName: currentStore?.name ?? "店舗",
           rating: review.rating,
         }),
       });
@@ -51,18 +83,27 @@ export default function ReviewsPage() {
           ? "Thank you so much for your kind review! We're so happy you enjoyed your experience. We look forward to welcoming you back soon!"
           : review.rating <= 3
           ? "この度はご不便をおかけし、誠に申し訳ございません。いただいたご意見を真摯に受け止め、改善に努めてまいります。またのご来店をお待ちしております。"
-          : "この度はご来店いただきありがとうございます！またのご来店を心よりお待ちしております。銀座 美容室 Shion スタッフ一同";
+          : `この度はご来店いただきありがとうございます！またのご来店を心よりお待ちしております。${currentStore?.name ?? "店舗"} スタッフ一同`;
       setGeneratedReplies((prev) => ({ ...prev, [review.id]: fallback }));
     } finally {
       setGeneratingId(null);
     }
   };
 
-  const handleConfirmReply = (id: string) => {
+  const handleConfirmReply = async (id: string) => {
+    const replyText = generatedReplies[id];
+    // 承認した返信テキストをDBに保存
+    try {
+      await fetch("/api/reviews/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewId: id, replyText }),
+      });
+    } catch {}
     setReviews((prev) =>
       prev.map((r) =>
         r.id === id
-          ? { ...r, replied: true, replyText: generatedReplies[id] }
+          ? { ...r, replied: true, replyText }
           : r
       )
     );
@@ -74,11 +115,21 @@ export default function ReviewsPage() {
     return <Badge variant={v as any}>{LANG_LABELS[lang] ?? lang.toUpperCase()}</Badge>;
   };
 
+  if (loading) {
+    return (
+      <div className="animate-slide-up flex flex-col items-center justify-center min-h-[300px] gap-3">
+        <Loader2 size={32} className="animate-spin" style={{ color: "var(--accent)" }} />
+        <p style={{ color: "var(--muted)" }}>口コミデータを取得中...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-slide-up">
       <PageHeader
         title="口コミ管理"
         subtitle="Googleマップの口コミを一元管理・AIで返信"
+        badge={dataSource === "db" ? "Supabase" : "デモデータ"}
       />
 
       {/* Filter tabs */}
@@ -94,7 +145,6 @@ export default function ReviewsPage() {
               onClick={() => setFilter(f)}
               className="px-5 py-2.5 text-[13px] transition-all"
               style={{
-                borderBottom: `2px solid ${filter === f ? "var(--accent)" : "transparent"}`,
                 marginBottom: -1,
                 color: filter === f ? "var(--accent)" : "var(--muted)",
                 background: "none",

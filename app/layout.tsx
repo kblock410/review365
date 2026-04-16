@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Sans_JP, Space_Grotesk } from "next/font/google";
 import "./globals.css";
+import { StoreProvider } from "@/lib/store-context";
 
 const noto = Noto_Sans_JP({
   subsets: ["latin"],
@@ -28,8 +29,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja" className={`${noto.variable} ${space.variable}`}>
-      <body className="font-sans bg-bg text-white antialiased">{children}</body>
+      <body className="font-sans bg-bg text-white antialiased">
+        <StoreProvider>{children}</StoreProvider>
+      </body>
     </html>
   );
 }
-

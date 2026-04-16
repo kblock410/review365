@@ -113,11 +113,25 @@ export function StatCard({ label, value, delta, deltaPositive = true, accent = "
   );
 }
 
-export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+export function PageHeader({ title, subtitle, badge }: { title: string; subtitle?: string; badge?: string }) {
   return (
-    <div className="mb-8">
-      <h1 className="font-mono text-[28px] font-semibold tracking-tight">{title}</h1>
-      {subtitle && <p className="text-[15px] mt-1.5" style={{ color: "var(--muted2)" }}>{subtitle}</p>}
+    <div className="mb-8 flex items-start justify-between">
+      <div>
+        <h1 className="font-mono text-[28px] font-semibold tracking-tight">{title}</h1>
+        {subtitle && <p className="text-[15px] mt-1.5" style={{ color: "var(--muted2)" }}>{subtitle}</p>}
+      </div>
+      {badge && (
+        <span
+          className="mt-1 px-2.5 py-1 rounded-full text-[11px] font-medium"
+          style={{
+            background: badge === "Supabase" ? "rgba(16,185,129,0.15)" : "rgba(245,158,11,0.15)",
+            border: `1px solid ${badge === "Supabase" ? "rgba(16,185,129,0.4)" : "rgba(245,158,11,0.4)"}`,
+            color: badge === "Supabase" ? "var(--green)" : "var(--amber)",
+          }}
+        >
+          {badge === "Supabase" ? "🟢 DB接続済" : "🟡 " + badge}
+        </span>
+      )}
     </div>
   );
 }
