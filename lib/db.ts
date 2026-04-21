@@ -36,9 +36,11 @@ export async function saveSurveyResponse(data: {
   generated_review?: string
 }) {
   const sb = createServerClient()
+  // store_id は data 側を優先（未指定ならデフォルト）
+  const payload = { store_id: DEFAULT_STORE_ID, ...data }
   const { data: saved, error } = await sb
     .from('survey_responses')
-    .insert({ store_id: DEFAULT_STORE_ID, ...data })
+    .insert(payload)
     .select()
     .single()
   if (error) throw error

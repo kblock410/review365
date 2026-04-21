@@ -30,11 +30,19 @@ export default function SettingsPage() {
   const [category, setCategory] = useState("beauty");
   const [keywords, setKeywords] = useState<string[]>([]);
   const [newKeyword, setNewKeyword] = useState("");
+  const [menuOptions, setMenuOptions] = useState<string[]>([]);
+  const [newMenu, setNewMenu] = useState("");
+  const [gbpPlaceId, setGbpPlaceId] = useState("");
 
   useEffect(() => {
+    if (!currentStoreId) return;
     setLoading(true);
     setEditing(false);
-    fetch("/api/settings")
+    const ctrl = new AbortController();
+    fetch(`/api/settings?storeId=${encodeURIComponent(currentStoreId)}`, {
+      cache: "no-store",
+      signal: ctrl.signal,
+    })
       .then((r) => r.json())
       .then((data) => {
         const s = data.store;
@@ -42,10 +50,15 @@ export default function SettingsPage() {
         setArea(s.area ?? "");
         setCategory(s.category ?? "beauty");
         setKeywords(s.keywords ?? []);
+        setMenuOptions(Array.isArray(s.menu_options) ? s.menu_options : []);
+        setGbpPlaceId(s.gbp_place_id ?? "");
         setDataSource(data.source ?? "mock");
       })
-      .catch(() => {})
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+      })
       .finally(() => setLoading(false));
+    return () => ctrl.abort();
   }, [currentStoreId]);
 
   const handleSave = async () => {
@@ -53,10 +66,17 @@ export default function SettingsPage() {
     setSaveError("");
     setSaved(false);
     try {
-      const res = await fetch("/api/settings", {
+      const res = await fetch(`/api/settings?storeId=${encodeURIComponent(currentStoreId)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, area, category, keywords }),
+        body: JSON.stringify({
+          name,
+          area,
+          category,
+          keywords,
+          menu_options: menuOptions,
+          gbp_place_id: gbpPlaceId.trim() || null,
+        }),
       });
       if (res.ok) {
         setSaved(true);
@@ -83,6 +103,29 @@ export default function SettingsPage() {
   };
 
   const removeKeyword = (kw: string) => setKeywords(keywords.filter((k) => k !== kw));
+
+  const addMenu = () => {
+    const m = newMenu.trim();
+    if (m && !menuOptions.includes(m)) {
+      setMenuOptions([...menuOptions, m]);
+      setNewMenu("");
+    }
+  };
+  const removeMenu = (m: string) => setMenuOptions(menuOptions.filter((x) => x !== m));
+
+  // 業種ごとのメニュー欄ラベル
+  const menuLabel =
+    category === "restaurant"
+      ? "メニュー（料理・ドリンク）"
+      : category === "beauty"
+      ? "メニュー（カット・カラー等）"
+      : "メニュー";
+  const menuPlaceholder =
+    category === "restaurant"
+      ? "例：パスタ / ピザ / ワイン"
+      : category === "beauty"
+      ? "例：カット / カラー / 縮毛矯正"
+      : "例：メニュー名";
 
   if (loading) {
     return (
@@ -203,6 +246,89 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               )}
+            </div>
+
+            {/* メニュー選択肢（アンケートで使用） */}
+            <div>
+              <label className="block text-[12px] mb-2" style={{ color: "var(--muted2)" }}>
+                {menuLabel} <span style={{ color: "var(--muted)" }}>（アンケートの選択肢として表示）</span>
+              </label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {menuOptions.length === 0 && !editing && (
+                  <span className="text-[12px]" style={{ color: "var(--muted)" }}>
+                    未登録（業種テンプレの既定値を使用）
+                  </span>
+                )}
+                {menuOptions.map((m) => (
+                  <span
+                    key={m}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px]"
+                    style={{
+                      background: "rgba(16,185,129,0.1)",
+                      border: "1px solid rgba(16,185,129,0.3)",
+                      color: "#10b981",
+                    }}
+                  >
+                    {m}
+                    {editing && (
+                      <button
+                        onClick={() => removeMenu(m)}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", lineHeight: 1 }}
+                      >
+                        <X size={11} />
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+              {editing && (
+                <div className="flex gap-2">
+                  <input
+                    className="input-base flex-1"
+                    placeholder={menuPlaceholder}
+                    value={newMenu}
+                    onChange={(e) => setNewMenu(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addMenu()}
+                  />
+                  <Button size="sm" onClick={addMenu}>
+                    <Plus size={13} /> 追加
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Google Business Profile（Place ID） */}
+            <div>
+              <label className="block text-[12px] mb-1" style={{ color: "var(--muted2)" }}>
+                Google Business Profile — Place ID{" "}
+                <span style={{ color: "var(--muted)" }}>
+                  （登録するとQR口コミ投稿時に正しいGoogle口コミ画面へ直接遷移）
+                </span>
+              </label>
+              {editing ? (
+                <input
+                  className="input-base"
+                  value={gbpPlaceId}
+                  onChange={(e) => setGbpPlaceId(e.target.value)}
+                  placeholder="例：ChIJN1t_tDeuEmsRUsoyG83frY4"
+                />
+              ) : (
+                <div className="input-base" style={{ color: "#f1f5f9", cursor: "default" }}>
+                  {gbpPlaceId || "（未設定）"}
+                </div>
+              )}
+              <p className="text-[11px] mt-1.5" style={{ color: "var(--muted)" }}>
+                取得方法:{" "}
+                <a
+                  href="https://developers.google.com/maps/documentation/places/web-service/place-id"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "var(--accent)", textDecoration: "underline" }}
+                >
+                  Place ID Finder
+                </a>{" "}
+                で店舗名を検索
+              </p>
             </div>
           </CardBody>
         </Card>

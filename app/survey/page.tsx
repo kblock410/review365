@@ -1,29 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Card, CardHeader, CardTitle, CardBody,
   Button, Badge, PageHeader, AIPulse, AIOutput,
 } from "@/components/ui";
-import {
-  MENU_OPTIONS, VISIT_REASONS, LANG_LABELS,
-} from "@/lib/utils";
-import type { Language, SurveyAnswer } from "@/types";
-import { Copy, RefreshCw, Send, Star, Check } from "lucide-react";
+import { LANG_LABELS } from "@/lib/utils";
+import type { Language } from "@/types";
+import { Copy, RefreshCw, Check } from "lucide-react";
 import { useStore } from "@/lib/store-context";
+import { getSurveyTemplate } from "@/lib/survey-templates";
+import type { SurveyQuestion } from "@/lib/survey-templates/types";
+
+type AnswerMap = Record<string, string | string[] | number>;
 
 export default function SurveyPage() {
   const { currentStore } = useStore();
   const storeName = currentStore?.name ?? "店舗";
   const storeKeywords = currentStore?.keywords ?? [];
+  const storeCategory = currentStore?.category ?? "restaurant";
+
+  // 業種ごとのアンケートテンプレを取得
+  const template = useMemo(
+    () => getSurveyTemplate(storeCategory),
+    [storeCategory]
+  );
+
+  // 店舗側カスタム選択肢の上書き（Q4: メニュー など）
+  const questions = useMemo<SurveyQuestion[]>(() => {
+    return template.questions.map((q) => {
+      if (q.sourceFromStore) {
+        const override = (currentStore as any)?.[q.sourceFromStore];
+        if (Array.isArray(override) && override.length > 0) {
+          return {
+            ...q,
+            options: override.map((v: string) => ({ value: v, label: v })),
+          };
+        }
+      }
+      return q;
+    });
+  }, [template, currentStore]);
+
   const [lang, setLang] = useState<Language>("ja");
-  const [rating, setRating] = useState(0);
+  const [answers, setAnswers] = useState<AnswerMap>({});
   const [hoverRating, setHoverRating] = useState(0);
-  const [visitReason, setVisitReason] = useState("");
-  const [menus, setMenus] = useState<string[]>([]);
-  const [staffRating, setStaffRating] = useState("");
-  const [atmosphere, setAtmosphere] = useState("");
-  const [freeText, setFreeText] = useState("");
 
   const [review, setReview] = useState("");
   const [usedKeyword, setUsedKeyword] = useState("");
@@ -34,36 +55,68 @@ export default function SurveyPage() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
 
-  const toggleMenu = (m: string) =>
-    setMenus((prev) =>
-      prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
-    );
+  const setAnswer = (key: string, value: string | string[] | number) => {
+    setAnswers((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const toggleMulti = (key: string, value: string) => {
+    setAnswers((prev) => {
+      const cur = (prev[key] as string[]) ?? [];
+      const next = cur.includes(value)
+        ? cur.filter((x) => x !== value)
+        : [...cur, value];
+      return { ...prev, [key]: next };
+    });
+  };
 
   const handleGenerate = async () => {
     setReviewLoading(true);
     setReview("");
     setReply("");
-    const body: SurveyAnswer = {
-      visitReason, menus, rating, staffRating, atmosphere, freeText, language: lang,
-    };
+
+    // 回答を「ラベル文字列」に整形して AI に渡す（key/value よりも自然文を作りやすい）
+    const labeledAnswers: Record<string, string | string[]> = {};
+    for (const q of questions) {
+      const v = answers[q.key];
+      if (v == null || v === "") continue;
+      if (q.type === "multi") {
+        const labels = ((v as string[]) ?? [])
+          .map((val) => q.options?.find((o) => o.value === val)?.label ?? val);
+        labeledAnswers[q.question] = labels;
+      } else if (q.type === "single") {
+        const label = q.options?.find((o) => o.value === v)?.label ?? String(v);
+        labeledAnswers[q.question] = label;
+      } else {
+        labeledAnswers[q.question] = String(v);
+      }
+    }
+
+    const ratingValue = (answers["rating"] as number) ?? 0;
+
     try {
       const res = await fetch("/api/generate-review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, storeName, keywords: storeKeywords }),
+        body: JSON.stringify({
+          storeName,
+          keywords: storeKeywords,
+          industry: template.aiContext.industry,
+          promptHints: template.aiContext.promptHints,
+          rating: ratingValue,
+          language: lang,
+          answers: labeledAnswers,
+        }),
       });
       const data = await res.json();
       const generatedReview = data.review || "エラーが発生しました。";
       setReview(generatedReview);
       setUsedKeyword(data.keyword || "");
-      // Auto-generate reply
       generateReply(generatedReview, lang);
-      // DB保存（バックグラウンドで実行、エラーは無視しない）
-      saveToDB({ visitReason, menus, rating, staffRating, atmosphere, freeText, language: lang }, generatedReview);
+      saveToDB(labeledAnswers, generatedReview);
     } catch {
       const fallbackKw = storeKeywords[0] ?? storeName;
       setReview(
-        `【サンプル出力】\n\nInstagramで見かけて初めて訪問しました。${fallbackKw}の中でも特に丁寧なカウンセリングで、仕上がりが想像以上に自然！スタッフの方がとても親切で、上品な空間でリラックスできました。また絶対来ます！`
+        `【サンプル出力】\n\n${storeName}（${template.aiContext.industry}）を利用しました。${fallbackKw}を探していて伺いましたが、料理も雰囲気も期待以上で大満足です。また必ず再訪します！`
       );
       setUsedKeyword(fallbackKw);
       generateReply("サンプル口コミです。", lang);
@@ -82,26 +135,37 @@ export default function SurveyPage() {
           reviewText,
           language,
           storeName,
-          rating,
+          rating: (answers["rating"] as number) ?? 0,
         }),
       });
       const data = await res.json();
       setReply(data.reply || "");
     } catch {
-      setReply(`この度はご来店いただきありがとうございます！またのご来店を心よりお待ちしております。${storeName} スタッフ一同`);
+      setReply(
+        `この度はご来店いただきありがとうございます！またのご来店を心よりお待ちしております。${storeName} スタッフ一同`
+      );
     } finally {
       setReplyLoading(false);
     }
   };
 
-  const saveToDB = async (answer: any, generatedReview: string) => {
+  const saveToDB = async (
+    labeledAnswers: Record<string, string | string[]>,
+    generatedReview: string
+  ) => {
     setSaved(false);
     setSaveError("");
     try {
       const res = await fetch("/api/save-response", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...answer, generatedReview }),
+        body: JSON.stringify({
+          storeId: currentStore?.id,
+          industry: template.aiContext.industry,
+          answers: labeledAnswers,
+          generatedReview,
+          language: lang,
+        }),
       });
       if (res.ok) setSaved(true);
       else setSaveError("保存に失敗しました");
@@ -116,11 +180,122 @@ export default function SurveyPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // ── 質問描画ヘルパー ──
+  const renderQuestion = (q: SurveyQuestion) => {
+    const value = answers[q.key];
+
+    if (q.type === "rating") {
+      const max = q.max ?? 5;
+      const current = (value as number) ?? 0;
+      return (
+        <div>
+          <label className="block text-[12px] mb-2" style={{ color: "var(--muted2)" }}>
+            {q.question}{q.required && <span style={{ color: "var(--red)" }}> *</span>}
+          </label>
+          <div className="flex gap-1">
+            {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                onMouseEnter={() => setHoverRating(n)}
+                onMouseLeave={() => setHoverRating(0)}
+                onClick={() => setAnswer(q.key, n)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 28,
+                  color: n <= (hoverRating || current) ? "var(--amber)" : "var(--border)",
+                  transition: "color 0.1s",
+                  padding: "0 2px",
+                }}
+              >
+                ★
+              </button>
+            ))}
+            {current > 0 && (
+              <span className="ml-2 text-[13px] self-center" style={{ color: "var(--muted2)" }}>
+                {current}/{max}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (q.type === "single") {
+      return (
+        <div>
+          <label className="block text-[12px] mb-1.5" style={{ color: "var(--muted2)" }}>
+            {q.question}{q.required && <span style={{ color: "var(--red)" }}> *</span>}
+          </label>
+          <select
+            className="input-base"
+            value={(value as string) ?? ""}
+            onChange={(e) => setAnswer(q.key, e.target.value)}
+          >
+            <option value="">選択してください</option>
+            {q.options?.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    if (q.type === "multi") {
+      const arr = (value as string[]) ?? [];
+      return (
+        <div>
+          <label className="block text-[12px] mb-2" style={{ color: "var(--muted2)" }}>
+            {q.question}{q.required && <span style={{ color: "var(--red)" }}> *</span>}
+            <span className="ml-1 text-[11px]" style={{ color: "var(--muted)" }}>（複数可）</span>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {q.options?.map((o) => (
+              <button
+                key={o.value}
+                onClick={() => toggleMulti(q.key, o.value)}
+                className="px-3 py-1.5 rounded-full text-[12px] transition-all"
+                style={{
+                  background: arr.includes(o.value) ? "rgba(59,130,246,0.2)" : "var(--surface2)",
+                  border: `1px solid ${arr.includes(o.value) ? "rgba(59,130,246,0.6)" : "var(--border)"}`,
+                  color: arr.includes(o.value) ? "var(--accent)" : "var(--muted2)",
+                  cursor: "pointer",
+                }}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (q.type === "text") {
+      return (
+        <div>
+          <label className="block text-[12px] mb-1.5" style={{ color: "var(--muted2)" }}>
+            {q.question}{q.required && <span style={{ color: "var(--red)" }}> *</span>}
+          </label>
+          <textarea
+            className="input-base"
+            rows={3}
+            placeholder={q.placeholder ?? ""}
+            value={(value as string) ?? ""}
+            onChange={(e) => setAnswer(q.key, e.target.value)}
+          />
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="animate-slide-up">
       <PageHeader
         title="口コミ生成"
-        subtitle="アンケートに答えるだけで、AIが最適な口コミ文を生成します"
+        subtitle={`${template.label} — アンケートに答えるだけで、AIが最適な口コミ文を生成します`}
       />
 
       <div className="grid grid-cols-2 gap-6">
@@ -129,7 +304,6 @@ export default function SurveyPage() {
           <Card>
             <CardHeader>
               <CardTitle>📋 お客様アンケート — {storeName}</CardTitle>
-              {/* Language toggle */}
               <div className="flex gap-1.5">
                 {(Object.keys(LANG_LABELS) as Language[]).map((l) => (
                   <button
@@ -149,119 +323,9 @@ export default function SurveyPage() {
               </div>
             </CardHeader>
             <CardBody className="space-y-4">
-              {/* Visit reason */}
-              <div>
-                <label className="block text-[12px] mb-1.5" style={{ color: "var(--muted2)" }}>
-                  ご来店のきっかけ
-                </label>
-                <select
-                  className="input-base"
-                  value={visitReason}
-                  onChange={(e) => setVisitReason(e.target.value)}
-                >
-                  <option value="">選択してください</option>
-                  {VISIT_REASONS.map((r) => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Menu checkboxes */}
-              <div>
-                <label className="block text-[12px] mb-2" style={{ color: "var(--muted2)" }}>
-                  ご利用メニュー（複数可）
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {MENU_OPTIONS.map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => toggleMenu(m)}
-                      className="px-3 py-1.5 rounded-full text-[12px] transition-all"
-                      style={{
-                        background: menus.includes(m) ? "rgba(59,130,246,0.2)" : "var(--surface2)",
-                        border: `1px solid ${menus.includes(m) ? "rgba(59,130,246,0.6)" : "var(--border)"}`,
-                        color: menus.includes(m) ? "var(--accent)" : "var(--muted2)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Star rating */}
-              <div>
-                <label className="block text-[12px] mb-2" style={{ color: "var(--muted2)" }}>
-                  全体的な満足度
-                </label>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button
-                      key={n}
-                      onMouseEnter={() => setHoverRating(n)}
-                      onMouseLeave={() => setHoverRating(0)}
-                      onClick={() => setRating(n)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        fontSize: 28,
-                        color: n <= (hoverRating || rating) ? "var(--amber)" : "var(--border)",
-                        transition: "color 0.1s",
-                        padding: "0 2px",
-                      }}
-                    >
-                      ★
-                    </button>
-                  ))}
-                  {rating > 0 && (
-                    <span className="ml-2 text-[13px] self-center" style={{ color: "var(--muted2)" }}>
-                      {rating}/5
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Staff + Atmosphere */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[12px] mb-1.5" style={{ color: "var(--muted2)" }}>
-                    スタッフの対応
-                  </label>
-                  <select className="input-base" value={staffRating} onChange={(e) => setStaffRating(e.target.value)}>
-                    <option value="">選択</option>
-                    <option value="とても良かった">とても良かった</option>
-                    <option value="良かった">良かった</option>
-                    <option value="普通">普通</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[12px] mb-1.5" style={{ color: "var(--muted2)" }}>
-                    店内の雰囲気
-                  </label>
-                  <select className="input-base" value={atmosphere} onChange={(e) => setAtmosphere(e.target.value)}>
-                    <option value="">選択</option>
-                    <option value="おしゃれで居心地が良かった">おしゃれで居心地良かった</option>
-                    <option value="清潔感があった">清潔感があった</option>
-                    <option value="リラックスできた">リラックスできた</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Free text */}
-              <div>
-                <label className="block text-[12px] mb-1.5" style={{ color: "var(--muted2)" }}>
-                  感想（任意）
-                </label>
-                <textarea
-                  className="input-base"
-                  rows={3}
-                  placeholder="特に良かった点など..."
-                  value={freeText}
-                  onChange={(e) => setFreeText(e.target.value)}
-                />
-              </div>
+              {questions.map((q) => (
+                <div key={q.key}>{renderQuestion(q)}</div>
+              ))}
 
               {/* Keywords */}
               <div>
@@ -305,7 +369,6 @@ export default function SurveyPage() {
 
         {/* ── Right: AI Output ── */}
         <div className="space-y-5">
-          {/* Review output */}
           <Card glow>
             <CardHeader>
               <CardTitle>AI生成 口コミ文</CardTitle>
@@ -353,7 +416,6 @@ export default function SurveyPage() {
             </CardBody>
           </Card>
 
-          {/* Reply output */}
           <Card>
             <CardHeader>
               <CardTitle>🤖 オーナー返信文</CardTitle>
@@ -384,4 +446,3 @@ export default function SurveyPage() {
     </div>
   );
 }
-

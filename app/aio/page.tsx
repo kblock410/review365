@@ -8,6 +8,7 @@ import {
 import { MOCK_AIO, MOCK_CITATIONS, MOCK_STORE, getScoreColor } from "@/lib/utils";
 import type { AIOResult, CitationStatus } from "@/types";
 import { Sparkles, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { useStore } from "@/lib/store-context";
 
 const AI_ENGINES = [
   { key: "chatgpt", label: "ChatGPT", color: "#10b981" },
@@ -34,6 +35,13 @@ function CitationIcon({ status }: { status: CitationStatus["status"] }) {
 }
 
 export default function AIOPage() {
+  const { currentStore } = useStore();
+  const storeName = currentStore?.name ?? MOCK_STORE.name;
+  const storeArea = currentStore?.area ?? MOCK_STORE.area;
+  const storeKeywords = (currentStore?.keywords?.length ? currentStore.keywords : MOCK_STORE.keywords) as string[];
+  const storeTotalReviews = currentStore?.total_reviews ?? MOCK_STORE.totalReviews;
+  const storeRating = currentStore?.average_rating ?? MOCK_STORE.averageRating;
+
   const [advice, setAdvice] = useState("");
   const [adviceLoading, setAdviceLoading] = useState(false);
   const [weakKw, setWeakKw] = useState(MOCK_AIO[2].keyword); // default: 最弱キーワード
@@ -46,19 +54,19 @@ export default function AIOPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          storeName: MOCK_STORE.name,
-          area: MOCK_STORE.area,
-          keywords: MOCK_STORE.keywords,
+          storeName,
+          area: storeArea,
+          keywords: storeKeywords,
           weakKeyword: weakKw,
-          totalReviews: MOCK_STORE.totalReviews,
-          rating: MOCK_STORE.averageRating,
+          totalReviews: storeTotalReviews,
+          rating: storeRating,
         }),
       });
       const data = await res.json();
       setAdvice(data.advice || "アドバイスを取得できませんでした。");
     } catch {
       setAdvice(
-        `## 優先度：高\n\n**① 「${weakKw}」キーワードを含む口コミを増やす**\n- 月10件以上の高品質な口コミに「${weakKw}」を自然に含める\n- AIはGoogleマップの口コミを信用情報として最優先で参照する\n\n## 優先度：高\n\n**② Googleビジネスプロフィールのサービス欄を更新**\n- 「${MOCK_STORE.area}」「縮毛矯正」を明記\n- 写真を週2回定期更新し、アクティブな店舗と認識させる\n\n## 優先度：中\n\n**③ 最新情報投稿にキーワードを含める**\n- GBPの最新情報投稿に「${weakKw}」を定期的に含める\n- AIが読み取れる構造化された情報を継続的に発信`
+        `## 優先度：高\n\n**① 「${weakKw}」キーワードを含む口コミを増やす**\n- 月10件以上の高品質な口コミに「${weakKw}」を自然に含める\n- AIはGoogleマップの口コミを信用情報として最優先で参照する\n\n## 優先度：高\n\n**② Googleビジネスプロフィールのサービス欄を更新**\n- 「${storeArea}」「縮毛矯正」を明記\n- 写真を週2回定期更新し、アクティブな店舗と認識させる\n\n## 優先度：中\n\n**③ 最新情報投稿にキーワードを含める**\n- GBPの最新情報投稿に「${weakKw}」を定期的に含める\n- AIが読み取れる構造化された情報を継続的に発信`
       );
     } finally {
       setAdviceLoading(false);
@@ -191,7 +199,7 @@ export default function AIOPage() {
                   value={weakKw}
                   onChange={(e) => setWeakKw(e.target.value)}
                 >
-                  {MOCK_STORE.keywords.map((kw) => (
+                  {storeKeywords.map((kw) => (
                     <option key={kw} value={kw}>{kw}</option>
                   ))}
                 </select>

@@ -7,7 +7,7 @@ import {
 } from "@/components/ui";
 import { LANG_LABELS } from "@/lib/utils";
 import type { Review } from "@/types";
-import { MessageSquare, RefreshCw, Check, Loader2 } from "lucide-react";
+import { MessageSquare, RefreshCw, Check, Loader2, Download } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 
 type Filter = "all" | "unreplied" | "low";
@@ -19,9 +19,14 @@ export default function ReviewsPage() {
   const [dataSource, setDataSource] = useState<"db" | "mock">("mock");
 
   useEffect(() => {
+    if (!currentStoreId) return;
     setLoading(true);
     setReviews([]);
-    fetch("/api/reviews")
+    const ctrl = new AbortController();
+    fetch(`/api/reviews?storeId=${encodeURIComponent(currentStoreId)}`, {
+      cache: "no-store",
+      signal: ctrl.signal,
+    })
       .then((r) => r.json())
       .then((data) => {
         // DBのカラム名（snake_case）をフロント型（camelCase）に変換
@@ -42,13 +47,65 @@ export default function ReviewsPage() {
         setReviews(mapped);
         setDataSource(data.source ?? "mock");
       })
-      .catch(() => {})
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+      })
       .finally(() => setLoading(false));
+    return () => ctrl.abort();
   }, [currentStoreId]);
   const [filter, setFilter] = useState<Filter>("all");
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [generatedReplies, setGeneratedReplies] = useState<Record<string, string>>({});
   const [confirmedReplies, setConfirmedReplies] = useState<Set<string>>(new Set());
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  const handleSyncGoogle = async () => {
+    if (!currentStoreId) return;
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const res = await fetch("/api/sync-google-reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeId: currentStoreId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSyncMsg(
+          `✓ 取得完了：新規 ${data.inserted} 件 / 更新 ${data.updated} 件`
+        );
+        // 反映のために再フェッチ
+        const rr = await fetch(
+          `/api/reviews?storeId=${encodeURIComponent(currentStoreId)}`,
+          { cache: "no-store" }
+        );
+        const rd = await rr.json();
+        const mapped: Review[] = rd.reviews.map((r: any) => ({
+          id: r.id,
+          reviewerName: r.reviewer_name ?? r.reviewerName,
+          rating: r.rating,
+          text: r.text,
+          language: r.language ?? "ja",
+          date: r.review_date
+            ? new Date(r.review_date).toLocaleDateString("ja-JP").replace(/-/g, "/")
+            : r.date ?? "",
+          replied: r.replied ?? false,
+          replyText: r.reply_text ?? r.replyText,
+          source: r.source ?? "google",
+          isLocal: r.is_local_guide ?? r.isLocal ?? false,
+        }));
+        setReviews(mapped);
+      } else {
+        setSyncMsg(`⚠ ${data.error ?? "取得に失敗しました"}`);
+      }
+    } catch (e: any) {
+      setSyncMsg(`⚠ ${e?.message ?? "取得に失敗しました"}`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(null), 5000);
+    }
+  };
 
   const filtered = reviews.filter((r) => {
     if (filter === "unreplied") return !r.replied;
@@ -131,6 +188,20 @@ export default function ReviewsPage() {
         subtitle="Googleマップの口コミを一元管理・AIで返信"
         badge={dataSource === "db" ? "Supabase" : "デモデータ"}
       />
+
+      {/* Google口コミ取得 */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="text-[12px]" style={{ color: "var(--muted)" }}>
+          {syncMsg ?? "設定画面で Place ID を登録しておくと、最新の Google 口コミを取得できます。"}
+        </div>
+        <Button size="sm" onClick={handleSyncGoogle} disabled={syncing}>
+          {syncing ? (
+            <><Loader2 size={13} className="animate-spin" /> 取得中...</>
+          ) : (
+            <><Download size={13} /> Google口コミを取得</>
+          )}
+        </Button>
+      </div>
 
       {/* Filter tabs */}
       <div

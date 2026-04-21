@@ -10,6 +10,7 @@ create table if not exists stores (
   map_rank int,
   gbp_place_id text,
   line_channel_id text,
+  menu_options text[] default '{}',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

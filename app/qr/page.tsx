@@ -2,10 +2,14 @@
 
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardBody, Button, Badge, PageHeader } from "@/components/ui";
-import { MOCK_STORE } from "@/lib/utils";
+import { useStore } from "@/lib/store-context";
 import { QrCode, Copy, Download, Check, Globe, Smartphone } from "lucide-react";
 
-const BASE_URL = "https://review365.app/survey"; // 本番URL
+// 公開アンケートの本番ベースURL（/s/[storeId] を指す）
+const BASE_URL =
+  typeof window !== "undefined"
+    ? `${window.location.origin}/s`
+    : "https://review365.app/s";
 
 const SURVEY_TYPES = [
   { id: "google", label: "Google マップ用", icon: "🗺️", color: "#4285f4", desc: "Google口コミに誘導" },
@@ -34,11 +38,13 @@ function QRCodeDisplay({ url, size = 180 }: { url: string; size?: number }) {
 }
 
 export default function QRPage() {
+  const { currentStoreId, currentStore } = useStore();
   const [selectedType, setSelectedType] = useState("google");
   const [copied, setCopied] = useState(false);
   const [lang, setLang] = useState<"ja" | "en" | "zh" | "all">("all");
 
-  const surveyUrl = `${BASE_URL}/${MOCK_STORE.id}?type=${selectedType}&lang=${lang}`;
+  const storeIdForUrl = currentStoreId ?? "store";
+  const surveyUrl = `${BASE_URL}/${storeIdForUrl}?type=${selectedType}&lang=${lang}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(surveyUrl);
@@ -153,7 +159,7 @@ export default function QRPage() {
             <CardBody className="flex flex-col items-center py-8">
               <QRCodeDisplay url={surveyUrl} size={200} />
               <div className="mt-6 text-center">
-                <div className="text-[14px] font-medium mb-1">{MOCK_STORE.name}</div>
+                <div className="text-[14px] font-medium mb-1">{currentStore?.name ?? "店舗"}</div>
                 <div className="text-[12px]" style={{ color: "var(--muted)" }}>
                   {SURVEY_TYPES.find(t => t.id === selectedType)?.label}
                 </div>

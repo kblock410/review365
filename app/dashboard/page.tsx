@@ -30,23 +30,41 @@ export default function DashboardPage() {
   const { currentStoreId, currentStore } = useStore();
   const [s, setS] = useState<DashboardStats>(MOCK_STATS);
   const [impressionsData, setImpressionsData] = useState(IMPRESSIONS_DATA);
+  const [reviewGrowthData, setReviewGrowthData] = useState(REVIEW_GROWTH_DATA);
   const [dataSource, setDataSource] = useState<"db" | "mock">("mock");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!currentStoreId) return;
     (window as any).__dashEffect = ((window as any).__dashEffect ?? 0) + 1;
     (window as any).__dashStoreId = currentStoreId;
     setLoading(true);
-    fetch("/api/dashboard")
+    const ctrl = new AbortController();
+    fetch(`/api/dashboard?storeId=${encodeURIComponent(currentStoreId)}`, {
+      cache: "no-store",
+      signal: ctrl.signal,
+    })
       .then((r) => r.json())
       .then((data) => {
         (window as any).__dashResolved = true;
         setS(data.stats);
         if (data.impressionsData?.length > 0) setImpressionsData(data.impressionsData);
+        if (data.reviewGrowthData) {
+          setReviewGrowthData(data.reviewGrowthData);
+        } else {
+          setReviewGrowthData(REVIEW_GROWTH_DATA);
+        }
         setDataSource(data.source ?? "mock");
       })
-      .catch((e) => { (window as any).__dashError = e.message; })
-      .finally(() => { (window as any).__dashFinally = ((window as any).__dashFinally ?? 0) + 1; setLoading(false); });
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        (window as any).__dashError = e.message;
+      })
+      .finally(() => {
+        (window as any).__dashFinally = ((window as any).__dashFinally ?? 0) + 1;
+        setLoading(false);
+      });
+    return () => ctrl.abort();
   }, [currentStoreId]);
 
   if (loading) {
@@ -87,7 +105,7 @@ export default function DashboardPage() {
           accent="amber"
         />
         <StatCard
-          label="MAP 順位（銀座 美容室）"
+          label={`MAP 順位（${currentStore?.area ?? "エリア"} ${currentStore?.category === "restaurant" ? "飲食店" : currentStore?.category === "clinic" ? "クリニック" : currentStore?.category === "beauty" ? "美容室" : "店舗"}）`}
           value={`#${s.mapRank}`}
           delta={`↑ 圏外 → ${s.mapRank}位`}
           accent="red"
@@ -185,7 +203,7 @@ export default function DashboardPage() {
             </div>
             <ProgressBar value={(s.totalReviews / 300) * 100} color="blue" className="mb-4" />
             <ResponsiveContainer width="100%" height={120}>
-              <AreaChart data={REVIEW_GROWTH_DATA}>
+              <AreaChart data={reviewGrowthData}>
                 <defs>
                   <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
