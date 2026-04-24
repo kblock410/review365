@@ -5,8 +5,125 @@ import {
   Card, CardHeader, CardTitle, CardBody,
   Button, Badge, PageHeader,
 } from "@/components/ui";
-import { Check, Loader2, Plus, X } from "lucide-react";
+import { Check, Loader2, Plus, X, GripVertical } from "lucide-react";
 import { useStore } from "@/lib/store-context";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+// 1メニュー行（ドラッグ可能・編集可能・削除可能）
+function SortableMenuRow({
+  id,
+  editing,
+  onEdit,
+  onRemove,
+}: {
+  id: string;
+  editing: boolean;
+  onEdit: (m: string) => void;
+  onRemove: (m: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled: !editing });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    background: "rgba(16,185,129,0.08)",
+    border: "1px solid rgba(16,185,129,0.25)",
+    borderRadius: 10,
+    padding: "8px 10px",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    color: "#10b981",
+    fontSize: 13,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {editing && (
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "grab",
+            color: "var(--muted)",
+            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            touchAction: "none",
+          }}
+          aria-label="並べ替えハンドル"
+        >
+          <GripVertical size={14} />
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => onEdit(id)}
+        disabled={!editing}
+        title={editing ? "クリックして編集" : undefined}
+        style={{
+          flex: 1,
+          textAlign: "left",
+          background: "none",
+          border: "none",
+          padding: 0,
+          color: "inherit",
+          font: "inherit",
+          cursor: editing ? "pointer" : "default",
+        }}
+      >
+        {id}
+      </button>
+      {editing && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(id);
+          }}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--muted)",
+            lineHeight: 1,
+            padding: 0,
+          }}
+          aria-label="削除"
+        >
+          <X size={13} />
+        </button>
+      )}
+    </div>
+  );
+}
 
 const CATEGORY_OPTIONS = [
   { value: "beauty", label: "美容室・サロン" },
@@ -104,6 +221,13 @@ export default function SettingsPage() {
 
   const removeKeyword = (kw: string) => setKeywords(keywords.filter((k) => k !== kw));
 
+  // チップ本体クリック: 入力欄に戻して再編集可能にする
+  const editKeyword = (kw: string) => {
+    if (!editing) return;
+    setNewKeyword(kw);
+    setKeywords(keywords.filter((k) => k !== kw));
+  };
+
   const addMenu = () => {
     const m = newMenu.trim();
     if (m && !menuOptions.includes(m)) {
@@ -112,6 +236,27 @@ export default function SettingsPage() {
     }
   };
   const removeMenu = (m: string) => setMenuOptions(menuOptions.filter((x) => x !== m));
+
+  const editMenu = (m: string) => {
+    if (!editing) return;
+    setNewMenu(m);
+    setMenuOptions(menuOptions.filter((x) => x !== m));
+  };
+
+  // DnD センサー（PCマウス + キーボード + モバイルタッチ）
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleMenuDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = menuOptions.indexOf(String(active.id));
+    const newIndex = menuOptions.indexOf(String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+    setMenuOptions((items) => arrayMove(items, oldIndex, newIndex));
+  };
 
   // 業種ごとのメニュー欄ラベル
   const menuLabel =
@@ -220,10 +365,28 @@ export default function SettingsPage() {
                       color: "var(--accent)",
                     }}
                   >
-                    {kw}
+                    <button
+                      type="button"
+                      onClick={() => editKeyword(kw)}
+                      disabled={!editing}
+                      title={editing ? "クリックして編集" : undefined}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        color: "inherit",
+                        font: "inherit",
+                        cursor: editing ? "pointer" : "default",
+                      }}
+                    >
+                      {kw}
+                    </button>
                     {editing && (
                       <button
-                        onClick={() => removeKeyword(kw)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeKeyword(kw);
+                        }}
                         style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", lineHeight: 1 }}
                       >
                         <X size={11} />
@@ -239,7 +402,16 @@ export default function SettingsPage() {
                     placeholder="新しいキーワードを追加..."
                     value={newKeyword}
                     onChange={(e) => setNewKeyword(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addKeyword()}
+                    onKeyDown={(e) => {
+                      if (
+                        e.key === "Enter" &&
+                        !e.nativeEvent.isComposing &&
+                        e.keyCode !== 229
+                      ) {
+                        e.preventDefault();
+                        addKeyword();
+                      }
+                    }}
                   />
                   <Button size="sm" onClick={addKeyword}>
                     <Plus size={13} /> 追加
@@ -253,34 +425,33 @@ export default function SettingsPage() {
               <label className="block text-[12px] mb-2" style={{ color: "var(--muted2)" }}>
                 {menuLabel} <span style={{ color: "var(--muted)" }}>（アンケートの選択肢として表示）</span>
               </label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {menuOptions.length === 0 && !editing && (
-                  <span className="text-[12px]" style={{ color: "var(--muted)" }}>
-                    未登録（業種テンプレの既定値を使用）
-                  </span>
-                )}
-                {menuOptions.map((m) => (
-                  <span
-                    key={m}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px]"
-                    style={{
-                      background: "rgba(16,185,129,0.1)",
-                      border: "1px solid rgba(16,185,129,0.3)",
-                      color: "#10b981",
-                    }}
-                  >
-                    {m}
-                    {editing && (
-                      <button
-                        onClick={() => removeMenu(m)}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", lineHeight: 1 }}
-                      >
-                        <X size={11} />
-                      </button>
-                    )}
-                  </span>
-                ))}
-              </div>
+              {menuOptions.length === 0 && !editing && (
+                <div className="text-[12px] mb-2" style={{ color: "var(--muted)" }}>
+                  未登録（業種テンプレの既定値を使用）
+                </div>
+              )}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleMenuDragEnd}
+              >
+                <SortableContext
+                  items={menuOptions}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="flex flex-col gap-1.5 mb-2">
+                    {menuOptions.map((m) => (
+                      <SortableMenuRow
+                        key={m}
+                        id={m}
+                        editing={editing}
+                        onEdit={editMenu}
+                        onRemove={removeMenu}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
               {editing && (
                 <div className="flex gap-2">
                   <input
@@ -288,7 +459,16 @@ export default function SettingsPage() {
                     placeholder={menuPlaceholder}
                     value={newMenu}
                     onChange={(e) => setNewMenu(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addMenu()}
+                    onKeyDown={(e) => {
+                      if (
+                        e.key === "Enter" &&
+                        !e.nativeEvent.isComposing &&
+                        e.keyCode !== 229
+                      ) {
+                        e.preventDefault();
+                        addMenu();
+                      }
+                    }}
                   />
                   <Button size="sm" onClick={addMenu}>
                     <Plus size={13} /> 追加

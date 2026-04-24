@@ -33,7 +33,6 @@ export default function PublicSurveyPage({
   const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [generatedReview, setGeneratedReview] = useState("");
-  const [copied, setCopied] = useState(false);
   const [surveyResponseId, setSurveyResponseId] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
 
@@ -58,6 +57,13 @@ export default function PublicSurveyPage({
       cancelled = true;
     };
   }, [storeId]);
+
+  // 質問ページ・ステップ切替時にスクロール位置をトップへリセット
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+  }, [currentQ, step]);
 
   // 業種テンプレ
   const template = useMemo(
@@ -188,36 +194,11 @@ export default function PublicSurveyPage({
   };
 
   // 「Googleマップに投稿する」ボタンを押したとき
-  const handlePostToGoogle = async () => {
+  const handlePostToGoogle = () => {
     if (!store || !generatedReview) return;
     setPosting(true);
 
-    // 口コミ本文をクリップボードにコピー（Google投稿画面で貼り付けやすくするため）
-    try {
-      await navigator.clipboard.writeText(generatedReview);
-    } catch {
-      // 失敗してもフローは続行
-    }
-
-    // DBに投稿フラグと reviews 行を記録
-    try {
-      await fetch("/api/mark-posted", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          surveyResponseId,
-          storeId: store.id,
-          rating: (answers["rating"] as number) ?? 0,
-          reviewText: generatedReview,
-          language: "ja",
-        }),
-      });
-    } catch {
-      // 失敗しても UX を止めない
-    }
-
-    // 新しいタブで Google Maps の口コミ投稿画面を開く
-    // 店舗に place_id があればそれを使い、無ければ店名＋エリアで検索
+    // URL 構築（同期）
     let googleUrl = "";
     if (store.gbp_place_id) {
       googleUrl = `https://search.google.com/local/writereview?placeid=${encodeURIComponent(store.gbp_place_id)}`;
@@ -225,7 +206,62 @@ export default function PublicSurveyPage({
       const query = encodeURIComponent(`${store.name} ${store.area}`);
       googleUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
     }
-    window.open(googleUrl, "_blank", "noopener,noreferrer");
+
+    // ① クリップボードコピー（先に実行: フォーカスが新規タブに移る前に）
+    // iOS Safari でも click ハンドラの同期スタック内なら clipboard.writeText が許可される
+    let clipboardFallback = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(generatedReview).catch(() => {
+          clipboardFallback = true;
+        });
+      } else {
+        clipboardFallback = true;
+      }
+    } catch {
+      clipboardFallback = true;
+    }
+
+    // フォールバック: textarea + execCommand('copy')（古いiOS Safari向け）
+    if (clipboardFallback) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = generatedReview;
+        ta.style.position = "fixed";
+        ta.style.top = "0";
+        ta.style.left = "0";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch {
+        // 無視
+      }
+    }
+
+    // ② 新規タブで Google 投稿画面を開く（同期: iOS Safari のポップアップブロック回避）
+    const newWin = window.open(googleUrl, "_blank", "noopener,noreferrer");
+
+    // ③ DB に投稿フラグと reviews 行を記録（非同期・fire-and-forget）
+    fetch("/api/mark-posted", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        surveyResponseId,
+        storeId: store.id,
+        rating: (answers["rating"] as number) ?? 0,
+        reviewText: generatedReview,
+        language: "ja",
+      }),
+    }).catch(() => {});
+
+    // ポップアップがブロックされた場合のフォールバック: 同タブ遷移
+    if (!newWin) {
+      window.location.href = googleUrl;
+      return;
+    }
 
     setPosting(false);
     setStep("posted");
@@ -234,12 +270,6 @@ export default function PublicSurveyPage({
   const makeSample = (kw: string) => {
     if (!store) return "";
     return `${store.name}（${template.aiContext.industry}）を利用しました。${kw}を探していて伺いましたが、想像以上に満足度が高く、また必ず再訪したいと思います！`;
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(generatedReview);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   // ── UI ──
@@ -510,24 +540,28 @@ export default function PublicSurveyPage({
               <button
                 type="button"
                 className="action-btn"
-                onClick={handleCopy}
-                style={{ background: copied ? "#10b981" : C, color: "#fff", border: "none" }}
-              >
-                {copied ? "✓ コピーしました" : "📋 口コミ文をコピーする"}
-              </button>
-              <button
-                type="button"
-                className="action-btn"
                 onClick={handlePostToGoogle}
                 disabled={posting}
                 style={{
                   background: posting ? "#e2e8f0" : "#f0fdf4",
                   color: posting ? "#94a3b8" : "#16a34a",
                   border: `2px solid ${posting ? "#e2e8f0" : "#bbf7d0"}`,
+                  marginBottom: 6,
                 }}
               >
-                {posting ? "投稿中..." : "🗺️ Googleマップに投稿する"}
+                {posting ? "投稿中..." : "✨ 口コミをコピーして投稿へ進む"}
               </button>
+              <div
+                style={{
+                  textAlign: "center",
+                  fontSize: 12,
+                  color: "#64748b",
+                  marginBottom: 12,
+                  lineHeight: 1.6,
+                }}
+              >
+                ※ そのまま貼り付け（ペースト）できます
+              </div>
               <button
                 type="button"
                 className="action-btn"
