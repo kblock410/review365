@@ -136,12 +136,12 @@ export default function DashboardPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2d47" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={50} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#a3b3cc" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#a3b3cc" }} axisLine={false} tickLine={false} width={50} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
                 <Tooltip
                   contentStyle={{ background: "#1a2235", border: "1px solid #1e2d47", borderRadius: 8, fontSize: 12 }}
-                  labelStyle={{ color: "#94a3b8" }}
-                  itemStyle={{ color: "#3b82f6" }}
+                  labelStyle={{ color: "#cbd5e1" }}
+                  itemStyle={{ color: "#60a5fa" }}
                   formatter={(v: any) => [(v as number).toLocaleString(), "表示回数"]}
                 />
                 <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fill="url(#impGrad)" />
@@ -171,7 +171,7 @@ export default function DashboardPage() {
                 {CHANNEL_DATA.map((d) => (
                   <div key={d.name}>
                     <div className="flex justify-between text-[12px] mb-1">
-                      <span style={{ color: "#94a3b8" }}>{d.name}</span>
+                      <span style={{ color: "var(--muted2)" }}>{d.name}</span>
                       <span className="font-medium">{d.value}%</span>
                     </div>
                     <ProgressBar value={d.value} color={d.color} />
@@ -211,8 +211,8 @@ export default function DashboardPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2d47" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={40} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#a3b3cc" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#a3b3cc" }} axisLine={false} tickLine={false} width={40} />
                 <Tooltip
                   contentStyle={{ background: "#1a2235", border: "1px solid #1e2d47", borderRadius: 8, fontSize: 12 }}
                   formatter={(v: any) => [v, "件"]}

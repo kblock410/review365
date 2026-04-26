@@ -6,21 +6,23 @@
   --bg: #0a0e1a;
   --surface: #111827;
   --surface2: #1a2235;
-  --border: #1e2d47;
-  --accent: #3b82f6;
-  --accent2: #06b6d4;
-  --green: #10b981;
-  --amber: #f59e0b;
-  --red: #ef4444;
-  --muted: #64748b;
-  --muted2: #94a3b8;
+  --border: #2a3a5c;
+  --accent: #60a5fa;
+  --accent2: #22d3ee;
+  --green: #34d399;
+  --amber: #fbbf24;
+  --red: #f87171;
+  /* 文字専用のミュートトーン（ダーク背景でAA以上の視認性を確保）*/
+  --muted: #a3b3cc;   /* 旧 #64748b → 明度UP */
+  --muted2: #cbd5e1;  /* 旧 #94a3b8 → さらに明るく */
+  --text: #f1f5f9;
 }
 
 * { box-sizing: border-box; }
 
 body {
   background: var(--bg);
-  color: #f1f5f9;
+  color: var(--text);
   font-family: var(--font-noto), sans-serif;
   font-size: 15px;
   line-height: 1.7;

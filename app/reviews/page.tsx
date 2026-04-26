@@ -304,7 +304,7 @@ export default function ReviewsPage() {
               </div>
 
               {/* Review text */}
-              <p className="text-[13px] leading-relaxed mb-3" style={{ color: "#94a3b8" }}>
+              <p className="text-[13px] leading-relaxed mb-3" style={{ color: "var(--text)" }}>
                 {review.text}
               </p>
 

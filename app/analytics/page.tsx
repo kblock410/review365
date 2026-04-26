@@ -124,8 +124,8 @@ export default function AnalyticsPage() {
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={monthly}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e2d47" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#a3b3cc" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#a3b3cc" }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip
                     contentStyle={{ background: "#1a2235", border: "1px solid #1e2d47", borderRadius: 8, fontSize: 12 }}
                   />
@@ -150,7 +150,7 @@ export default function AnalyticsPage() {
               <ResponsiveContainer width="100%" height={200}>
                 <RadarChart data={radar}>
                   <PolarGrid stroke="#1e2d47" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: "#cbd5e1" }} />
                   <Radar name="評価" dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} strokeWidth={2} />
                 </RadarChart>
               </ResponsiveContainer>
