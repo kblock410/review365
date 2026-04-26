@@ -52,6 +52,32 @@ export default function QRPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleDownload = async () => {
+    // 高解像度（印刷用）で再取得
+    const downloadSize = 1024;
+    const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${downloadSize}x${downloadSize}&data=${encodeURIComponent(
+      surveyUrl
+    )}&margin=10&color=000000&bgcolor=ffffff&format=png`;
+    try {
+      const res = await fetch(apiUrl);
+      if (!res.ok) throw new Error(`QR取得失敗: ${res.status}`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      const safeStoreName = (currentStore?.name ?? "store").replace(/[\\/:*?"<>|\s]+/g, "_");
+      a.download = `qr_${safeStoreName}_${selectedType}_${lang}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // メモリ解放（少し遅延させてSafari対策）
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (e) {
+      console.error(e);
+      alert("QRコードのダウンロードに失敗しました。時間をおいて再度お試しください。");
+    }
+  };
+
   return (
     <div className="animate-slide-up">
       <PageHeader
@@ -152,7 +178,7 @@ export default function QRPage() {
           <Card glow>
             <CardHeader>
               <CardTitle>QRコード</CardTitle>
-              <Button size="sm" variant="ghost">
+              <Button size="sm" variant="ghost" onClick={handleDownload}>
                 <Download size={13} /> ダウンロード
               </Button>
             </CardHeader>
