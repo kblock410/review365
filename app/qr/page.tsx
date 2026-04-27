@@ -1,15 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardBody, Button, Badge, PageHeader } from "@/components/ui";
 import { useStore } from "@/lib/store-context";
 import { QrCode, Copy, Download, Check, Globe, Smartphone } from "lucide-react";
-
-// 公開アンケートの本番ベースURL（/s/[storeId] を指す）
-const BASE_URL =
-  typeof window !== "undefined"
-    ? `${window.location.origin}/s`
-    : "https://review365.app/s";
 
 const SURVEY_TYPES = [
   { id: "google", label: "Google マップ用", icon: "🗺️", color: "#4285f4", desc: "Google口コミに誘導" },
@@ -18,6 +12,17 @@ const SURVEY_TYPES = [
 ];
 
 function QRCodeDisplay({ url, size = 180 }: { url: string; size?: number }) {
+  // url が空（マウント前）の場合は同サイズの白プレースホルダーを表示してレイアウト崩れを防ぐ
+  if (!url) {
+    return (
+      <div
+        className="flex items-center justify-center rounded-xl p-4"
+        style={{ background: "#fff", width: size + 32, height: size + 32 }}
+      >
+        <div style={{ width: size, height: size, background: "#f1f5f9" }} />
+      </div>
+    );
+  }
   // api.qrserver.com を使ってリアルなQRコードを生成
   const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(url)}&margin=10&color=000000&bgcolor=ffffff`;
   return (
@@ -42,17 +47,33 @@ export default function QRPage() {
   const [selectedType, setSelectedType] = useState("google");
   const [copied, setCopied] = useState(false);
   const [lang, setLang] = useState<"ja" | "en" | "zh" | "all">("all");
+  // BASE_URL はクライアント側でしか確定しないため、マウント後に設定する。
+  // SSR で typeof window 判定をするとハイドレーションミスマッチの原因になる（React error #418）。
+  const [origin, setOrigin] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setOrigin(window.location.origin);
+    }
+  }, []);
 
   const storeIdForUrl = currentStoreId ?? "store";
-  const surveyUrl = `${BASE_URL}/${storeIdForUrl}?type=${selectedType}&lang=${lang}`;
+  const surveyUrl = origin
+    ? `${origin}/s/${storeIdForUrl}?type=${selectedType}&lang=${lang}`
+    : "";
 
   const handleCopy = () => {
+    if (!surveyUrl) return;
     navigator.clipboard.writeText(surveyUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownload = async () => {
+    if (!surveyUrl) {
+      alert("URL の準備中です。少し待ってから再度お試しください。");
+      return;
+    }
     // 高解像度（印刷用）を自前APIプロキシ経由で取得 → 同一オリジンになるため download属性も効く
     const downloadSize = 1024;
     const proxyUrl = `/api/qr?size=${downloadSize}&data=${encodeURIComponent(surveyUrl)}`;
