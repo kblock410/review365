@@ -53,14 +53,15 @@ export default function QRPage() {
   };
 
   const handleDownload = async () => {
-    // 高解像度（印刷用）で再取得
+    // 高解像度（印刷用）を自前APIプロキシ経由で取得 → 同一オリジンになるため download属性も効く
     const downloadSize = 1024;
-    const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${downloadSize}x${downloadSize}&data=${encodeURIComponent(
-      surveyUrl
-    )}&margin=10&color=000000&bgcolor=ffffff&format=png`;
+    const proxyUrl = `/api/qr?size=${downloadSize}&data=${encodeURIComponent(surveyUrl)}`;
     try {
-      const res = await fetch(apiUrl);
-      if (!res.ok) throw new Error(`QR取得失敗: ${res.status}`);
+      const res = await fetch(proxyUrl);
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`QR取得失敗: ${res.status} ${txt.slice(0, 200)}`);
+      }
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -72,9 +73,9 @@ export default function QRPage() {
       document.body.removeChild(a);
       // メモリ解放（少し遅延させてSafari対策）
       setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-    } catch (e) {
-      console.error(e);
-      alert("QRコードのダウンロードに失敗しました。時間をおいて再度お試しください。");
+    } catch (e: any) {
+      console.error("[QR Download]", e);
+      alert(`QRコードのダウンロードに失敗しました。\n${e?.message ?? ""}`);
     }
   };
 
