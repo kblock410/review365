@@ -3,7 +3,17 @@
 import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardBody, Button, Badge, PageHeader } from "@/components/ui";
 import { useStore } from "@/lib/store-context";
-import { QrCode, Copy, Download, Check, Globe, Smartphone } from "lucide-react";
+import {
+  QrCode,
+  Copy,
+  Download,
+  Check,
+  Globe,
+  Smartphone,
+  ClipboardList,
+  Send,
+  UserCheck,
+} from "lucide-react";
 
 const SURVEY_TYPES = [
   { id: "google", label: "Google マップ用", icon: "🗺️", color: "#4285f4", desc: "Google口コミに誘導" },
@@ -212,12 +222,69 @@ export default function QRPage() {
                   {SURVEY_TYPES.find(t => t.id === selectedType)?.label}
                 </div>
               </div>
+              {/* 4ステップフロー（POP印刷用：お客様向けガイド） */}
               <div
-                className="mt-6 p-4 rounded-xl text-center w-full"
+                className="mt-6 w-full p-4 rounded-xl"
                 style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}
               >
-                <div className="text-[12px] mb-2" style={{ color: "var(--muted)" }}>印刷用POPに使用</div>
-                <div className="text-[13px]">このQRコードをスキャンして<br/>口コミを投稿してください 🙏</div>
+                <div className="text-[12px] text-center mb-3 font-medium" style={{ color: "var(--muted2)" }}>
+                  口コミ投稿の流れ（4ステップ）
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    {
+                      n: 1,
+                      icon: QrCode,
+                      title: "QRを読み取る",
+                      desc: "スマホのカメラで\nスキャン",
+                    },
+                    {
+                      n: 2,
+                      icon: ClipboardList,
+                      title: "アンケート回答",
+                      desc: "AIが口コミ文を\n自動作成",
+                    },
+                    {
+                      n: 3,
+                      icon: Send,
+                      title: "Googleへ投稿",
+                      desc: "ログインして\nペースト送信",
+                    },
+                    {
+                      n: 4,
+                      icon: UserCheck,
+                      title: "スタッフへ提示",
+                      desc: "投稿完了画面を\nお見せください",
+                    },
+                  ].map((s, i, arr) => (
+                    <div key={s.n} className="relative flex flex-col items-center text-center">
+                      {/* ステップ番号バッジ */}
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold mb-1.5"
+                        style={{ background: "var(--accent)", color: "#fff" }}
+                      >
+                        {s.n}
+                      </div>
+                      <s.icon size={20} style={{ color: "var(--accent2)" }} />
+                      <div className="text-[11px] font-semibold mt-1.5 leading-tight">{s.title}</div>
+                      <div
+                        className="text-[10px] mt-1 leading-tight whitespace-pre-line"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        {s.desc}
+                      </div>
+                      {/* ステップ間の矢印 */}
+                      {i < arr.length - 1 && (
+                        <div
+                          className="absolute -right-1 top-2 text-[12px]"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          ›
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </CardBody>
           </Card>
